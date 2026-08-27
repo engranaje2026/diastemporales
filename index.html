@@ -1,0 +1,779 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Conciliación Escalafonaria Bilateral</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root{
+    --navy-950:#070b14;
+    --navy-900:#0d1526;
+    --navy-800:#121d35;
+    --navy-700:#1b2a4a;
+    --navy-600:#2a3d63;
+    --ink-100:#eef2fb;
+    --ink-300:#a9b6d1;
+    --ink-500:#6d7a9c;
+    --folio-amber:#c9a24b;
+    --verde:#3fb27f;
+    --amarillo:#d9a441;
+    --rojo:#d1585a;
+    --radius:10px;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:
+      radial-gradient(1200px 600px at 15% -10%, #0f1b34 0%, transparent 60%),
+      var(--navy-950);
+    color:var(--ink-100);
+    font-family:'Inter',sans-serif;
+    min-height:100vh;
+  }
+  .mono{font-family:'JetBrains Mono',monospace;}
+  h1,h2,h3,.display{font-family:'Space Grotesk',sans-serif;}
+
+  /* ---------- Ledger header signature ---------- */
+  .app-header{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:18px 28px; border-bottom:1px solid var(--navy-700);
+    background:linear-gradient(180deg, var(--navy-900), transparent);
+  }
+  .brand{display:flex; align-items:center; gap:12px;}
+  .brand .stamp{
+    width:38px;height:38px;border-radius:50%;
+    border:2px solid var(--folio-amber);
+    display:flex;align-items:center;justify-content:center;
+    color:var(--folio-amber); font-family:'JetBrains Mono';font-weight:600;font-size:13px;
+    transform:rotate(-8deg);
+  }
+  .brand h1{font-size:17px;margin:0;font-weight:600;letter-spacing:.2px;}
+  .brand small{color:var(--ink-500);font-size:12px;display:block;margin-top:1px;}
+  .role-pill{
+    font-size:11px;text-transform:uppercase;letter-spacing:.6px;
+    padding:5px 10px;border-radius:20px;border:1px solid var(--navy-600);
+    color:var(--ink-300);
+  }
+  .header-actions{display:flex;align-items:center;gap:12px;}
+  button, .btn{
+    font-family:'Inter',sans-serif; font-size:13px; font-weight:600;
+    border-radius:8px; border:1px solid var(--navy-600);
+    background:var(--navy-800); color:var(--ink-100);
+    padding:9px 15px; cursor:pointer; transition:.15s;
+  }
+  button:hover{background:var(--navy-700); border-color:var(--folio-amber);}
+  button.primary{background:var(--folio-amber); color:#1a1305; border-color:var(--folio-amber);}
+  button.primary:hover{filter:brightness(1.08);}
+  button.ghost{background:transparent;}
+  button:disabled{opacity:.45; cursor:not-allowed;}
+
+  main{max-width:1080px;margin:0 auto;padding:28px;}
+  .hidden{display:none !important;}
+
+  /* ---------- Login ---------- */
+  #view-login{
+    min-height:80vh; display:flex; align-items:center; justify-content:center;
+  }
+  .login-card{
+    width:100%; max-width:380px; background:var(--navy-900);
+    border:1px solid var(--navy-700); border-radius:var(--radius); padding:32px;
+  }
+  .login-card h2{margin:0 0 4px; font-size:20px;}
+  .login-card p.sub{color:var(--ink-500); font-size:13px; margin:0 0 22px;}
+  label{display:block; font-size:12px; color:var(--ink-300); margin:14px 0 6px;}
+  input, select, textarea{
+    width:100%; background:var(--navy-800); border:1px solid var(--navy-600);
+    color:var(--ink-100); border-radius:7px; padding:10px 11px; font-size:14px;
+    font-family:'Inter',sans-serif;
+  }
+  input:focus, select:focus, textarea:focus{outline:2px solid var(--folio-amber); outline-offset:1px;}
+  .error-msg{color:var(--rojo); font-size:12.5px; margin-top:10px;}
+  .link-btn{
+    background:none;border:none;color:var(--folio-amber);font-size:12.5px;
+    cursor:pointer;padding:0;margin-top:16px;text-decoration:underline;
+  }
+
+  /* ---------- Tabs ---------- */
+  .tabs{display:flex; gap:6px; margin-bottom:22px; border-bottom:1px solid var(--navy-700);}
+  .tab{
+    padding:10px 14px; font-size:13px; color:var(--ink-500); cursor:pointer;
+    border-bottom:2px solid transparent; font-weight:600;
+  }
+  .tab.active{color:var(--ink-100); border-bottom-color:var(--folio-amber);}
+
+  /* ---------- Cards / panels ---------- */
+  .panel{
+    background:var(--navy-900); border:1px solid var(--navy-700);
+    border-radius:var(--radius); padding:22px; margin-bottom:20px;
+  }
+  .panel h3{margin:0 0 14px; font-size:15px;}
+  .grid-2{display:grid; grid-template-columns:1fr 1fr; gap:14px;}
+  .stat-row{display:flex; gap:14px; flex-wrap:wrap; margin-bottom:22px;}
+  .stat{
+    flex:1; min-width:140px; background:var(--navy-900); border:1px solid var(--navy-700);
+    border-radius:var(--radius); padding:16px;
+  }
+  .stat .num{font-family:'JetBrains Mono'; font-size:26px; font-weight:600;}
+  .stat .lbl{color:var(--ink-500); font-size:12px; margin-top:4px;}
+
+  /* ---------- Table + semáforo ---------- */
+  table{width:100%; border-collapse:collapse; font-size:13.5px;}
+  th{
+    text-align:left; color:var(--ink-500); font-weight:600; font-size:11px;
+    text-transform:uppercase; letter-spacing:.5px; padding:8px 10px;
+    border-bottom:1px solid var(--navy-700);
+  }
+  td{padding:10px; border-bottom:1px solid var(--navy-800); vertical-align:middle;}
+  tr:hover td{background:rgba(255,255,255,.02);}
+  .folio-tag{font-family:'JetBrains Mono'; color:var(--folio-amber); font-size:13px;}
+  .semaforo{
+    display:inline-flex; align-items:center; gap:6px; font-size:12px;
+    padding:3px 9px; border-radius:20px; font-weight:600;
+  }
+  .semaforo.verde{background:rgba(63,178,127,.12); color:var(--verde);}
+  .semaforo.amarillo{background:rgba(217,164,65,.14); color:var(--amarillo);}
+  .semaforo.rojo{background:rgba(209,88,90,.14); color:var(--rojo);}
+  .dot{width:7px;height:7px;border-radius:50%;background:currentColor;}
+  .empty-state{color:var(--ink-500); font-size:13px; padding:20px 0; text-align:center;}
+
+  .filters{display:flex; gap:10px; margin-bottom:16px; flex-wrap:wrap;}
+  .filters input, .filters select{width:auto; min-width:160px;}
+
+  footer{text-align:center; color:var(--ink-500); font-size:11.5px; padding:30px 0;}
+
+  @media (max-width:640px){
+    .grid-2{grid-template-columns:1fr;}
+    main{padding:18px;}
+    .app-header{padding:14px 16px;}
+  }
+</style>
+</head>
+<body>
+
+<!-- ================= CONFIGURACIÓN ================= -->
+<!-- Reemplaza estos dos valores con los de tu proyecto de Supabase
+     (Project Settings > API). El anon key es público por diseño;
+     la seguridad real la da RLS en schema.sql -->
+<script>
+  const SUPABASE_URL = "https://noowsswtjtkidoavnsno.supabase.co";
+  const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5vb3dzc3d0anRraWRvYXZuc25vIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODc4MzI0MjgsImV4cCI6MjEwMzQwODQyOH0.sQYGGuBlc8AmpdLknU0NeWPTSvHQxEq_aHuqBIZ3mY8";
+</script>
+
+<div id="view-login">
+  <main>
+    <div class="login-card">
+      <div class="brand" style="margin-bottom:20px;">
+        <div class="stamp">C-B</div>
+        <div>
+          <h1>Conciliación Escalafonaria</h1>
+          <small>Acceso por login</small>
+        </div>
+      </div>
+      <h2>Iniciar sesión</h2>
+      <p class="sub">Captura y consulta tus folios de propuesta.</p>
+      <label>Correo</label>
+      <input type="email" id="login-email" placeholder="tucorreo@dominio.com">
+      <label>Contraseña</label>
+      <input type="password" id="login-pass" placeholder="••••••••">
+      <button class="primary" style="width:100%; margin-top:20px;" onclick="iniciarSesion()">Entrar</button>
+      <div class="error-msg hidden" id="login-error"></div>
+      <button class="link-btn" onclick="mostrarPublico()">Ver panel público de transparencia →</button>
+    </div>
+  </main>
+</div>
+
+<div id="view-app" class="hidden">
+  <header class="app-header">
+    <div class="brand">
+      <div class="stamp">C-B</div>
+      <div>
+        <h1>Conciliación Escalafonaria</h1>
+        <small id="user-name-lbl">—</small>
+      </div>
+    </div>
+    <div class="header-actions">
+      <span class="role-pill" id="role-pill">—</span>
+      <button class="ghost" onclick="cerrarSesion()">Salir</button>
+    </div>
+  </header>
+  <main>
+    <div class="tabs" id="tabs"></div>
+    <div id="tab-content"></div>
+  </main>
+</div>
+
+<div id="view-publico" class="hidden">
+  <header class="app-header">
+    <div class="brand">
+      <div class="stamp">C-B</div>
+      <div>
+        <h1>Panel Público de Transparencia</h1>
+        <small>Solo lectura — sin permisos</small>
+      </div>
+    </div>
+    <div class="header-actions">
+      <button onclick="mostrarLogin()">Iniciar sesión →</button>
+    </div>
+  </header>
+  <main>
+    <div class="panel" style="margin-bottom:20px;">
+      <h3 style="margin-bottom:12px;">Corte al</h3>
+      <div class="filters" style="margin-bottom:10px;">
+        <input type="date" id="pub-corte" onchange="renderPublico()">
+        <input type="text" id="pub-filtro-nombre" placeholder="Buscar trabajador..." oninput="renderPublico()">
+      </div>
+      <div id="pub-presets" style="display:flex; gap:8px; flex-wrap:wrap;"></div>
+    </div>
+    <div class="panel">
+      <h3 id="pub-tabla-titulo">Padrón general de días acreditados</h3>
+      <div id="pub-tabla"></div>
+    </div>
+    <footer>Los folios en verde ya están conciliados por ambas partes. El acumulado mostrado solo cuenta folios validados con fecha hasta el corte seleccionado.</footer>
+  </main>
+</div>
+
+<script>
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+let sesion = null;   // { user, perfil }
+let cacheCapturas = [];
+let cachePerfiles = [];
+
+// ---------------------------------------------------------------------
+// Navegación entre vistas
+// ---------------------------------------------------------------------
+function mostrarPublico(){
+  document.getElementById('view-login').classList.add('hidden');
+  document.getElementById('view-app').classList.add('hidden');
+  document.getElementById('view-publico').classList.remove('hidden');
+  cargarPublico();
+}
+function mostrarLogin(){
+  document.getElementById('view-publico').classList.add('hidden');
+  document.getElementById('view-app').classList.add('hidden');
+  document.getElementById('view-login').classList.remove('hidden');
+}
+function mostrarApp(){
+  document.getElementById('view-login').classList.add('hidden');
+  document.getElementById('view-publico').classList.add('hidden');
+  document.getElementById('view-app').classList.remove('hidden');
+}
+
+// ---------------------------------------------------------------------
+// Autenticación
+// ---------------------------------------------------------------------
+async function iniciarSesion(){
+  const email = document.getElementById('login-email').value.trim();
+  const pass = document.getElementById('login-pass').value;
+  const errBox = document.getElementById('login-error');
+  errBox.classList.add('hidden');
+
+  const { data, error } = await sb.auth.signInWithPassword({ email, password: pass });
+  if (error){
+    errBox.textContent = 'No se pudo iniciar sesión: revisa tu correo y contraseña.';
+    errBox.classList.remove('hidden');
+    return;
+  }
+  await cargarSesion();
+}
+
+async function cerrarSesion(){
+  await sb.auth.signOut();
+  sesion = null;
+  mostrarLogin();
+}
+
+async function cargarSesion(){
+  const { data:{ user } } = await sb.auth.getUser();
+  if (!user){ mostrarLogin(); return; }
+
+  const { data:perfil, error } = await sb.from('perfiles').select('*').eq('id', user.id).single();
+  if (error || !perfil){
+    document.getElementById('login-error').textContent = 'Tu usuario no tiene perfil asignado. Contacta al administrador.';
+    document.getElementById('login-error').classList.remove('hidden');
+    mostrarLogin();
+    return;
+  }
+  sesion = { user, perfil };
+  document.getElementById('user-name-lbl').textContent = perfil.nombre_completo;
+  document.getElementById('role-pill').textContent = etiquetaRol(perfil.rol);
+  mostrarApp();
+  await construirTabs();
+}
+
+function etiquetaRol(rol){
+  return { dirigencia_general:'Dirigencia General', area_trabajo:'Área de Trabajo', trabajador:'Trabajador' }[rol] || rol;
+}
+
+// ---------------------------------------------------------------------
+// Tabs por rol
+// ---------------------------------------------------------------------
+async function construirTabs(){
+  const tabsEl = document.getElementById('tabs');
+  const esAdmin = sesion.perfil.rol === 'dirigencia_general' || sesion.perfil.rol === 'area_trabajo';
+  const tabs = esAdmin
+    ? [['captura','Cargar folio oficial'], ['aclaracion','Bandeja de aclaración'], ['trabajadores','Trabajadores']]
+    : [['mis-registros','Mis registros'], ['nueva-captura','Subir propuesta']];
+
+  tabsEl.innerHTML = tabs.map((t,i)=>`<div class="tab ${i===0?'active':''}" data-tab="${t[0]}" onclick="cambiarTab('${t[0]}')">${t[1]}</div>`).join('');
+  await cambiarTab(tabs[0][0]);
+}
+
+async function cambiarTab(nombre){
+  document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active', t.dataset.tab===nombre));
+  const cont = document.getElementById('tab-content');
+  cont.innerHTML = '<div class="empty-state">Cargando…</div>';
+
+  if (nombre === 'mis-registros') return renderMisRegistros();
+  if (nombre === 'nueva-captura') return renderNuevaCaptura();
+  if (nombre === 'captura') return renderCargaOficial();
+  if (nombre === 'aclaracion') return renderBandejaAclaracion();
+  if (nombre === 'trabajadores') return renderTrabajadores();
+}
+
+// ---------------------------------------------------------------------
+// TRABAJADOR: mis registros
+// ---------------------------------------------------------------------
+async function renderMisRegistros(){
+  const { data, error } = await sb
+    .from('v_conciliacion')
+    .select('*')
+    .eq('trabajador_id', sesion.user.id)
+    .order('ultima_actualizacion', { ascending:false });
+
+  const cont = document.getElementById('tab-content');
+  if (error){ cont.innerHTML = `<div class="empty-state">${error.message}</div>`; return; }
+
+  const validados = data.filter(d=>d.estado==='verde').reduce((a,d)=>a+(d.dias_acreditados||0),0);
+  cont.innerHTML = `
+    <div class="stat-row">
+      <div class="stat"><div class="num" style="color:var(--verde)">${validados}</div><div class="lbl">Días acreditados (validados)</div></div>
+      <div class="stat"><div class="num">${data.length}</div><div class="lbl">Folios registrados</div></div>
+      <div class="stat"><div class="num" style="color:var(--rojo)">${data.filter(d=>d.estado!=='verde').length}</div><div class="lbl">Con discrepancia</div></div>
+    </div>
+    <div class="panel">
+      <h3>Tus propuestas, folio por folio</h3>
+      ${tablaConciliacion(data, false)}
+    </div>`;
+}
+
+async function renderNuevaCaptura(){
+  const cont = document.getElementById('tab-content');
+  cont.innerHTML = `
+    <div class="panel" style="max-width:480px;">
+      <h3>Subir mi propuesta</h3>
+      <label>Folio de la propuesta</label>
+      <input id="nf-folio" placeholder="Ej. 1000">
+      <div class="grid-2">
+        <div><label>Días trabajados</label><input id="nf-dias" type="number" min="0"></div>
+        <div><label>Soporte (PDF o imagen)</label><input id="nf-archivo" type="file" accept=".pdf,image/*"></div>
+      </div>
+      <div class="grid-2">
+        <div><label>Fecha inicio</label><input id="nf-inicio" type="date"></div>
+        <div><label>Fecha fin</label><input id="nf-fin" type="date"></div>
+      </div>
+      <button class="primary" style="width:100%; margin-top:20px;" onclick="guardarCapturaTrabajador()">Guardar propuesta</button>
+      <div class="error-msg hidden" id="nf-error"></div>
+    </div>`;
+}
+
+async function guardarCapturaTrabajador(){
+  const folio = document.getElementById('nf-folio').value.trim();
+  const dias = parseInt(document.getElementById('nf-dias').value, 10);
+  const inicio = document.getElementById('nf-inicio').value || null;
+  const fin = document.getElementById('nf-fin').value || null;
+  const archivo = document.getElementById('nf-archivo').files[0];
+  const errBox = document.getElementById('nf-error');
+  errBox.classList.add('hidden');
+
+  if (!folio || isNaN(dias)){
+    errBox.textContent = 'Folio y días son obligatorios.';
+    errBox.classList.remove('hidden');
+    return;
+  }
+
+  let soporte_url = null;
+  if (archivo){
+    const ruta = `${sesion.user.id}/${folio}-${Date.now()}-${archivo.name}`;
+    const { error: upErr } = await sb.storage.from('soportes').upload(ruta, archivo);
+    if (upErr){ errBox.textContent = 'No se pudo subir el soporte: ' + upErr.message; errBox.classList.remove('hidden'); return; }
+    soporte_url = ruta;
+  }
+
+  const { error } = await sb.from('capturas').insert({
+    folio, dias, fecha_inicio: inicio, fecha_fin: fin, soporte_url,
+    trabajador_id: sesion.user.id, capturado_por: sesion.user.id, origen: 'trabajador'
+  });
+
+  if (error){
+    errBox.textContent = error.message.includes('duplicate')
+      ? 'Ya subiste una propuesta con ese folio.'
+      : 'Error al guardar: ' + error.message;
+    errBox.classList.remove('hidden');
+    return;
+  }
+  await cambiarTab('mis-registros');
+}
+
+// ---------------------------------------------------------------------
+// ADMIN: carga oficial de folios
+// ---------------------------------------------------------------------
+async function renderCargaOficial(){
+  const { data: trabajadores } = await sb.from('perfiles').select('id, nombre_completo').eq('rol','trabajador').eq('activo', true).order('nombre_completo');
+  const cont = document.getElementById('tab-content');
+  cont.innerHTML = `
+    <div class="panel" style="max-width:520px;">
+      <h3>Cargar folio de propuesta (oficial)</h3>
+      <label>Trabajador</label>
+      <select id="co-trabajador">
+        ${trabajadores.map(t=>`<option value="${t.id}">${t.nombre_completo}</option>`).join('')}
+      </select>
+      <label>Folio de la propuesta</label>
+      <input id="co-folio" placeholder="Ej. 1000">
+      <div class="grid-2">
+        <div><label>Días trabajados</label><input id="co-dias" type="number" min="0"></div>
+        <div><label>Fecha inicio</label><input id="co-inicio" type="date"></div>
+      </div>
+      <label>Fecha fin</label>
+      <input id="co-fin" type="date">
+      <button class="primary" style="width:100%; margin-top:20px;" onclick="guardarCapturaOficial()">Registrar folio</button>
+      <div class="error-msg hidden" id="co-error"></div>
+    </div>`;
+}
+
+async function guardarCapturaOficial(){
+  const trabajador_id = document.getElementById('co-trabajador').value;
+  const folio = document.getElementById('co-folio').value.trim();
+  const dias = parseInt(document.getElementById('co-dias').value, 10);
+  const inicio = document.getElementById('co-inicio').value || null;
+  const fin = document.getElementById('co-fin').value || null;
+  const errBox = document.getElementById('co-error');
+  errBox.classList.add('hidden');
+
+  if (!trabajador_id || !folio || isNaN(dias)){
+    errBox.textContent = 'Trabajador, folio y días son obligatorios.';
+    errBox.classList.remove('hidden');
+    return;
+  }
+
+  const { error } = await sb.from('capturas').insert({
+    folio, dias, fecha_inicio: inicio, fecha_fin: fin,
+    trabajador_id, capturado_por: sesion.user.id, origen: 'oficial'
+  });
+
+  if (error){
+    errBox.textContent = error.message.includes('duplicate')
+      ? 'Ese folio ya fue registrado para este trabajador.'
+      : 'Error al guardar: ' + error.message;
+    errBox.classList.remove('hidden');
+    return;
+  }
+  document.getElementById('co-folio').value = '';
+  document.getElementById('co-dias').value = '';
+  errBox.classList.add('hidden');
+}
+
+// ---------------------------------------------------------------------
+// ADMIN: bandeja de aclaración
+// ---------------------------------------------------------------------
+async function renderBandejaAclaracion(){
+  const { data, error } = await sb
+    .from('v_conciliacion')
+    .select('*, perfiles:trabajador_id(nombre_completo)')
+    .neq('estado','verde')
+    .order('ultima_actualizacion', { ascending:false });
+
+  const cont = document.getElementById('tab-content');
+  if (error){ cont.innerHTML = `<div class="empty-state">${error.message}</div>`; return; }
+  if (!data.length){ cont.innerHTML = `<div class="panel"><div class="empty-state">Sin discrepancias pendientes. Todo conciliado ✓</div></div>`; return; }
+
+  cont.innerHTML = `
+    <div class="panel">
+      <h3>Folios con discrepancia (${data.length})</h3>
+      <table>
+        <thead><tr><th>Trabajador</th><th>Folio</th><th>Oficial</th><th>Trabajador</th><th>Estado</th><th></th></tr></thead>
+        <tbody>
+          ${data.map(d=>`
+            <tr>
+              <td>${d.perfiles?.nombre_completo || '—'}</td>
+              <td class="folio-tag">#${d.folio}</td>
+              <td>${d.dias_oficial ?? '<span style="color:var(--ink-500)">sin captura</span>'}</td>
+              <td>${d.dias_trabajador ?? '<span style="color:var(--ink-500)">sin captura</span>'}</td>
+              <td>${semaforoHtml(d.estado)}</td>
+              <td><button onclick="abrirResolucion('${d.trabajador_id}','${d.folio}', ${d.dias_oficial ?? 'null'}, ${d.dias_trabajador ?? 'null'})">Aclarar</button></td>
+            </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>
+    <div id="modal-aclaracion"></div>`;
+}
+
+function abrirResolucion(trabajador_id, folio, diasOficial, diasTrabajador){
+  const modal = document.getElementById('modal-aclaracion');
+  modal.innerHTML = `
+    <div class="panel" style="max-width:440px;">
+      <h3>Aclarar folio #${folio}</h3>
+      <p style="color:var(--ink-300); font-size:13px;">Oficial: ${diasOficial ?? '—'} días · Trabajador: ${diasTrabajador ?? '—'} días</p>
+      <label>Días correctos (verificados con evidencia)</label>
+      <input id="ac-dias" type="number" min="0" value="${diasOficial ?? diasTrabajador ?? ''}">
+      <label>Comentario / motivo de la aclaración</label>
+      <textarea id="ac-comentario" rows="3" placeholder="Ej. se validó contra el soporte, el periodo real fue del 15 al 19 de agosto"></textarea>
+      <button class="primary" style="width:100%; margin-top:16px;" onclick="resolverAclaracion('${trabajador_id}','${folio}', ${diasOficial ?? 'null'})">Guardar aclaración</button>
+      <div class="error-msg hidden" id="ac-error"></div>
+    </div>`;
+}
+
+async function resolverAclaracion(trabajador_id, folio, diasAnteriores){
+  const diasCorregidos = parseInt(document.getElementById('ac-dias').value, 10);
+  const comentario = document.getElementById('ac-comentario').value.trim();
+  const errBox = document.getElementById('ac-error');
+
+  if (isNaN(diasCorregidos)){
+    errBox.textContent = 'Indica los días correctos.';
+    errBox.classList.remove('hidden');
+    return;
+  }
+
+  // 1) corrige (o crea) el lado oficial con el valor verificado
+  const { error: upErr } = await sb.from('capturas')
+    .upsert({
+      folio, trabajador_id, origen: 'oficial', dias: diasCorregidos,
+      capturado_por: sesion.user.id
+    }, { onConflict: 'folio,trabajador_id,origen' });
+
+  if (upErr){ errBox.textContent = upErr.message; errBox.classList.remove('hidden'); return; }
+
+  // 2) deja constancia en la bitácora de aclaraciones
+  await sb.from('aclaraciones').insert({
+    folio, trabajador_id, dias_anteriores: diasAnteriores,
+    dias_corregidos: diasCorregidos, comentario, resuelto_por: sesion.user.id
+  });
+
+  await renderBandejaAclaracion();
+}
+
+// ---------------------------------------------------------------------
+// ADMIN (dirigencia_general): alta de trabajadores
+// ---------------------------------------------------------------------
+async function renderTrabajadores(){
+  const { data, error } = await sb.from('perfiles').select('*').order('nombre_completo');
+  const cont = document.getElementById('tab-content');
+  const puedeAltar = sesion.perfil.rol === 'dirigencia_general';
+
+  cont.innerHTML = `
+    ${puedeAltar ? `
+    <div class="panel" style="max-width:520px;">
+      <h3>Dar de alta trabajador</h3>
+      <p style="color:var(--ink-500); font-size:12.5px; margin-top:-8px;">
+        Primero crea la cuenta en Authentication de Supabase con su correo,
+        copia su UUID y complétalo aquí.
+      </p>
+      <label>UUID del usuario (Supabase Auth)</label>
+      <input id="tr-uuid" placeholder="00000000-0000-0000-0000-000000000000">
+      <label>Nombre completo</label>
+      <input id="tr-nombre" placeholder="Nombre Apellido">
+      <div class="grid-2">
+        <div><label>RTT (Registro Temporal de Trabajador)</label><input id="tr-rtt" placeholder="Ej. RTT-0001"></div>
+        <div><label>Rol</label>
+          <select id="tr-rol">
+            <option value="trabajador">Trabajador</option>
+            <option value="area_trabajo">Área de Trabajo</option>
+            <option value="dirigencia_general">Dirigencia General</option>
+          </select>
+        </div>
+      </div>
+      <button class="primary" style="width:100%; margin-top:20px;" onclick="crearTrabajador()">Dar de alta</button>
+      <div class="error-msg hidden" id="tr-error"></div>
+    </div>` : ''}
+    <div class="panel">
+      <h3>Padrón interno (${data?.length || 0})</h3>
+      <table>
+        <thead><tr><th>RTT</th><th>Nombre</th><th>Rol</th><th>Activo</th></tr></thead>
+        <tbody>
+          ${(data||[]).map(t=>`<tr><td class="folio-tag">${t.rtt||'—'}</td><td>${t.nombre_completo}</td><td>${etiquetaRol(t.rol)}</td><td>${t.activo?'Sí':'No'}</td></tr>`).join('')}
+        </tbody>
+      </table>
+    </div>`;
+}
+
+async function crearTrabajador(){
+  const id = document.getElementById('tr-uuid').value.trim();
+  const nombre_completo = document.getElementById('tr-nombre').value.trim();
+  const rtt = document.getElementById('tr-rtt').value.trim() || null;
+  const rol = document.getElementById('tr-rol').value;
+  const errBox = document.getElementById('tr-error');
+
+  if (!id || !nombre_completo){
+    errBox.textContent = 'UUID y nombre son obligatorios.';
+    errBox.classList.remove('hidden');
+    return;
+  }
+  const { error } = await sb.from('perfiles').insert({ id, nombre_completo, rtt, rol });
+  if (error){ errBox.textContent = error.message; errBox.classList.remove('hidden'); return; }
+  await renderTrabajadores();
+}
+
+// ---------------------------------------------------------------------
+// Helpers de presentación
+// ---------------------------------------------------------------------
+function semaforoHtml(estado){
+  const etiqueta = { verde:'Validado', amarillo:'Días no coinciden', rojo:'Falta contraparte' }[estado] || estado;
+  return `<span class="semaforo ${estado}"><span class="dot"></span>${etiqueta}</span>`;
+}
+
+function tablaConciliacion(rows){
+  if (!rows.length) return '<div class="empty-state">Aún no has subido propuestas.</div>';
+  return `
+    <table>
+      <thead><tr><th>Folio</th><th>Días (yo)</th><th>Días (oficial)</th><th>Estado</th><th>Periodo</th></tr></thead>
+      <tbody>
+        ${rows.map(r=>`
+          <tr>
+            <td class="folio-tag">#${r.folio}</td>
+            <td>${r.dias_trabajador ?? '—'}</td>
+            <td>${r.dias_oficial ?? '—'}</td>
+            <td>${semaforoHtml(r.estado)}</td>
+            <td class="mono" style="color:var(--ink-500); font-size:12px;">${r.fecha_inicio_trabajador||'—'} → ${r.fecha_fin_trabajador||'—'}</td>
+          </tr>`).join('')}
+      </tbody>
+    </table>`;
+}
+
+// ---------------------------------------------------------------------
+// Vista pública (sin login) — usa v_publica_folios vía rol anon y
+// calcula, al vuelo, dos acumulados independientes por fecha de corte:
+// lo que dice la Secretaría de Trabajo (origen='oficial') y lo que dice
+// el propio trabajador (origen='trabajador'). No pre-concilia nada:
+// el público ve las dos cifras crudas y puede comparar por sí mismo.
+// ---------------------------------------------------------------------
+let cacheFoliosPublico = [];   // [{trabajador_id, rtt, nombre_completo, folio, origen, dias, fecha_corte}]
+let filaExpandida = null;
+
+function hoyISO(){ return new Date().toISOString().slice(0,10); }
+
+async function cargarPublico(){
+  const { data, error } = await sb.from('v_publica_folios').select('*');
+  const cont = document.getElementById('pub-tabla');
+  if (error){ cont.innerHTML = `<div class="empty-state">${error.message}</div>`; return; }
+  cacheFoliosPublico = data || [];
+
+  const inputCorte = document.getElementById('pub-corte');
+  if (!inputCorte.value) inputCorte.value = hoyISO();
+
+  construirPresets();
+  renderPublico();
+}
+
+function construirPresets(){
+  // Genera un botón de "fin de mes" por cada mes con folios registrados,
+  // más un botón "Hoy" — para saltar directo a "cómo iban al 31 de julio"
+  const meses = new Set();
+  cacheFoliosPublico.forEach(f=>{
+    if (f.fecha_corte) meses.add(f.fecha_corte.slice(0,7)); // YYYY-MM
+  });
+  const ordenados = [...meses].sort();
+  const cont = document.getElementById('pub-presets');
+
+  const botonesMes = ordenados.map(m=>{
+    const [y, mm] = m.split('-').map(Number);
+    const finDeMes = new Date(y, mm, 0).toISOString().slice(0,10); // último día del mes
+    const nombreMes = new Date(y, mm-1, 1).toLocaleDateString('es-MX', { month:'long', year:'numeric' });
+    return `<button onclick="fijarCorte('${finDeMes}')">Al 31 de ${nombreMes}</button>`;
+  }).join('');
+
+  cont.innerHTML = botonesMes + `<button onclick="fijarCorte('${hoyISO()}')">Hasta hoy</button>`;
+}
+
+function fijarCorte(fecha){
+  document.getElementById('pub-corte').value = fecha;
+  renderPublico();
+}
+
+function renderPublico(){
+  const nombre = (document.getElementById('pub-filtro-nombre').value || '').toLowerCase();
+  const corte = document.getElementById('pub-corte').value || hoyISO();
+  document.getElementById('pub-tabla-titulo').textContent = `Padrón general — corte al ${corte}`;
+
+  const dentroDeCorte = cacheFoliosPublico.filter(f => !f.fecha_corte || f.fecha_corte <= corte);
+
+  const porTrabajador = {};
+  dentroDeCorte.forEach(f=>{
+    if (!porTrabajador[f.trabajador_id]){
+      porTrabajador[f.trabajador_id] = {
+        rtt: f.rtt, nombre_completo: f.nombre_completo,
+        diasOficial: 0, diasTrabajador: 0, folios: []
+      };
+    }
+    const v = porTrabajador[f.trabajador_id];
+    if (f.origen === 'oficial') v.diasOficial += f.dias;
+    else v.diasTrabajador += f.dias;
+    v.folios.push(f);
+  });
+
+  const filas = Object.entries(porTrabajador)
+    .map(([id, v]) => ({ trabajador_id:id, ...v }))
+    .filter(v => v.nombre_completo.toLowerCase().includes(nombre))
+    .sort((a,b) => b.diasOficial - a.diasOficial);
+
+  const cont = document.getElementById('pub-tabla');
+  if (!filas.length){ cont.innerHTML = '<div class="empty-state">Sin resultados para esta fecha de corte.</div>'; return; }
+
+  cont.innerHTML = `
+    <table>
+      <thead><tr><th>RTT</th><th>Trabajador</th><th>Días (Secretaría)</th><th>Días (Trabajador)</th><th></th><th></th></tr></thead>
+      <tbody>
+        ${filas.map(v=>{
+          const coincide = v.diasOficial === v.diasTrabajador;
+          return `
+          <tr>
+            <td class="folio-tag">${v.rtt || '—'}</td>
+            <td>${v.nombre_completo}</td>
+            <td class="mono" style="font-weight:600; font-size:15px;">${v.diasOficial}</td>
+            <td class="mono" style="font-weight:600; font-size:15px;">${v.diasTrabajador}</td>
+            <td>${coincide
+              ? `<span class="semaforo verde"><span class="dot"></span>Coincide</span>`
+              : `<span class="semaforo rojo"><span class="dot"></span>Discrepancia</span>`}</td>
+            <td><button class="ghost" onclick="toggleDetalle('${v.trabajador_id}')">${filaExpandida===v.trabajador_id ? 'Ocultar' : 'Ver detalle'}</button></td>
+          </tr>
+          ${filaExpandida===v.trabajador_id ? detalleFoliosHtml(v.folios) : ''}`;
+        }).join('')}
+      </tbody>
+    </table>`;
+}
+
+function detalleFoliosHtml(folios){
+  const ordenados = [...folios].sort((a,b)=> (a.fecha_corte||'').localeCompare(b.fecha_corte||''));
+  return `
+    <tr><td colspan="6" style="background:var(--navy-800); padding:14px 16px;">
+      <table>
+        <thead><tr><th>Folio</th><th>Origen</th><th>Días</th><th>Fecha</th></tr></thead>
+        <tbody>
+          ${ordenados.map(f=>`
+            <tr>
+              <td class="folio-tag">#${f.folio}</td>
+              <td>${f.origen === 'oficial' ? 'Secretaría' : 'Trabajador'}</td>
+              <td>${f.dias}</td>
+              <td class="mono" style="color:var(--ink-500); font-size:12px;">${f.fecha_corte || '—'}</td>
+            </tr>`).join('')}
+        </tbody>
+      </table>
+    </td></tr>`;
+}
+
+function toggleDetalle(trabajadorId){
+  filaExpandida = filaExpandida === trabajadorId ? null : trabajadorId;
+  renderPublico();
+}
+
+// ---------------------------------------------------------------------
+// Arranque
+// ---------------------------------------------------------------------
+(async function init(){
+  const { data:{ session } } = await sb.auth.getSession();
+  if (session) await cargarSesion(); else mostrarLogin();
+})();
+</script>
+</body>
+</html>
